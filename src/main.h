@@ -10,13 +10,16 @@
 #include <TaskScheduler.h>
 #include <Wire.h>
 #include <SI7021.h>
-#include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <SpritzCipher.h>
+#include <ESP8266WebServerSecure.h>
 
 // The following file should #define two values, WIFI_SSID and WIFI_PASSWORD, the ssid and pass for the network you
 // want to connect to
 #include "wifi.credentials.h"
+
+// This file defines our certificates for TLS use
+#include "certificates.h"
 
 // Relevant pin definitions. MUX pins are as per datasheet
 #define MUX_A_PIN D3
@@ -44,3 +47,4 @@ typedef struct _ArrayWithSize {
 
 bool encodePackedArray(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 void addDataToMicrophoneEntropy(uint32_t data);
+void handleRoot();

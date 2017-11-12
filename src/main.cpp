@@ -62,6 +62,9 @@ IPAddress serverIP(0, 0, 0, 0);
 // A UDP instance
 WiFiUDP udp;
 
+// Set up a secure server instance
+ESP8266WebServerSecure webServer(443);
+
 // Create a variable to hold the Unix time during setup, as well as a variable to hold the current millis when
 // we got this time. This way we can compute current NTP time by comparison
 uint64_t NTPSyncTime;
@@ -93,11 +96,21 @@ void setup() {
     Serial.print(".");
   }
 
+  Serial.print("LocalIP: ");
+  Serial.println(WiFi.localIP());
+
   // Compute the broadcast IP
   broadcastIP = ~WiFi.subnetMask() | WiFi.gatewayIP();
 
   // Start up the UDP service
   udp.begin(UDP_PORT);
+
+  // Set server key
+  webServer.setServerKeyAndCert_P(rsakey, sizeof(rsakey), x509, sizeof(x509));
+
+  webServer.on("/", handleRoot);
+
+  webServer.begin();
 
   // Add all the tasks to the runner and enable them
   taskRunner.addTask(readMic);
@@ -178,32 +191,12 @@ void sendClientServiceMessageCallback() {
   udp.endPacket();
 }
 
-void listenForUDPPacketCallback() {
-  int packetSize = udp.parsePacket();
-  if (packetSize) {
-    // Read the packet into a packetBuffer
-    char packetBuffer[UDP_MAX_SIZE];
-    int readLength = udp.read(packetBuffer, UDP_MAX_SIZE);
-    // Null terminate the packet data so that we can do string comparison below
-    packetBuffer[readLength] = 0;
+void handleRoot() {
+  webServer.send(200, "text/plain", "Hello from esp8266 over HTTPS!");
+}
 
-    // Depending on the contents, take different action
-    if (strcmp(packetBuffer, serverMagicString) == 0) {
-      serverIP = udp.remoteIP();
-    }
-    else {
-      // Only accept packets from the IP matching our light pet server
-      if (serverIP == udp.remoteIP()) {
-        // The message is a data message. For the moment just print it, but eventually this will
-        // be where we decode the protobuf format and update state based on the data
-        for (int i = 0; i < readLength; i++) {
-          Serial.print(packetBuffer[i]);
-          Serial.print(" ");
-        }
-        Serial.print("\n");
-      }
-    }
-  }
+void listenForUDPPacketCallback() {
+  webServer.handleClient();
 }
 
 void NTPSyncCallback() {

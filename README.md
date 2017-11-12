@@ -58,6 +58,8 @@ This code was originally developed using the Arduino IDE, but I've since switche
 editors. I think this is a much better solution, and it will come with pre-installed drivers for the ESP8266 and will automatically
 install the required libraries since they are defined in the `platformio.ini` file.
 
+We currently use a fork of the ESP8266 Arduino library that has HTTPS support. Once this is mainlined, we should revert back.
+
 ## Usage
 
 1. Download the nanopb binaries from https://jpa.kapsi.fi/nanopb/download/ and unzip them to a local directory.
