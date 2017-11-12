@@ -282,8 +282,9 @@ void sendDataPacketCallback() {
       udp.write(outputBuffer, message_length);
       udp.endPacket();
     }
-    else {
-      // Just print to serial
+
+    if (DEBUG_MODE) {
+      // Print the data to the serial
       for (int i = 0; i < message_length; i++) {
         Serial.print(outputBuffer[i]);
         Serial.print(" ");

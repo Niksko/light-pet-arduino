@@ -32,6 +32,10 @@
 #define MICROPHONE_ENTROPY_SIZE 64
 // Define the amount of time to wait between retrying OTP generation if there is insufficient entropy (in ms)
 #define OTP_ENTROPY_WAIT_TIME 200
+
+// Debug mode allows us to view the data being streamed from the device
+#define DEBUG_MODE false
+
 // Make a typdef to define an array with associated size. This will be used to encode packed arrays in protobufs
 typedef struct _ArrayWithSize {
   uint32_t **array;
