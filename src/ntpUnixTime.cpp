@@ -9,6 +9,8 @@
  * memory segment, and the received packet is read one byte at a time.
  * The Unix time is returned, that is, seconds from 1970-01-01T00:00.
  */
+#include <Arduino.h>
+#include <WiFiUdp.h>
 
 uint64_t ntpUnixTime(WiFiUDP &udp)
 {

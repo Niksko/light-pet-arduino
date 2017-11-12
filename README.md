@@ -54,27 +54,14 @@ Briefly:
 My NodeMCU board came with the Arduino firmware. If yours doesn't (I think some versions come with Lua based firmware)
 then you'll need to flash the Arduino firmware to use the code I've provided.
 
-My code makes use of a few libraries that you'll need to install using the library manager in the Arduino IDE. These
-are:
-
-* [A library for the SI7021 from Low Power Labs](https://github.com/LowPowerLab/SI7021)
-* [The nanopb library for dealing with protobufs](https://github.com/nanopb/nanopb)
-* The TaskScheduler library for making use of protothreading.
-
-The first two libraries should be installed by downloading a zip of the master branch from the linked github pages
-and then installing them in the Arduino IDE with Sketch->Include Library->Add .ZIP library. The TaskScheduler library
-should be available via the Sketch->Include Library->Manage Libraries interface.
-
-You'll also need to add the ESP8266 boards to your Arduino IDE by following [these](https://github.com/esp8266/Arduino)
-instructions. This should also add the ESP8266 specific libraries we will be using.
-
-Currently the code writes the protobuf encoded data to the Serial connection, but the next step will be to send
-this to a location on the network via UDP.
-
+This code was originally developed using the Arduino IDE, but I've since switched to the wonderful PlatformIO plugin for popular
+editors. I think this is a much better solution, and it will come with pre-installed drivers for the ESP8266 and will automatically
+install the required libraries since they are defined in the `platformio.ini` file.
 
 ## Usage
 
-* Download the nanopb binaries from https://jpa.kapsi.fi/nanopb/download/ and unzip them to a local directory.
-* Update the path at the top of the makefile to point to the right binary
-* ~Ensure that you have python3 installed.~ Replace with something better, we probably shouldn't need this.
-* Run `make` from the root directory to update the configuration header and to build the protobuf for usage by the arduino code
+1. Download the nanopb binaries from https://jpa.kapsi.fi/nanopb/download/ and unzip them to a local directory.
+2. Update the path at the top of the makefile to point to the right location
+3. Ensure that you have python3 installed, this is used to build the `configuration.json` into a header file for upload
+4. Run `make` from the root directory to update the configuration header and to build the protobuf for usage by the arduino code
+5. You should now be able to build and upload using PlatformIO
