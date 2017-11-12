@@ -23,6 +23,10 @@ bool message_status;
 pb_ostream_t outputStream;
 SensorData outputData;
 
+// Variables used to hold data for CSPRNG seeding
+uint8_t microphone_entropy[MICROPHONE_ENTROPY_SIZE];
+uint8_t microphone_entropy_fullness;
+
 // Function prototypes for task callback functions
 void readMicCallback();
 void readLightCallback();
@@ -31,6 +35,7 @@ void sendDataPacketCallback();
 void sendClientServiceMessageCallback();
 void listenForUDPPacketCallback();
 void NTPSyncCallback();
+void oneTimePasswordGenerationCallback();
 
 // function prototype for ntpUnixTime
 uint64_t ntpUnixTime(WiFiUDP &udp);
@@ -43,6 +48,7 @@ Task sendDataPacket(MS_PER_SECOND / DATA_SEND_RATE, TASK_FOREVER, &sendDataPacke
 Task sendClientServiceMessage(MS_PER_SECOND * ADVERTISEMENT_RATE, TASK_FOREVER, &sendClientServiceMessageCallback);
 Task listenForUDPPacket(MS_PER_SECOND / DATA_RECEIVE_RATE, TASK_FOREVER, &listenForUDPPacketCallback);
 Task NTPSync(MS_PER_SECOND * NTP_SYNC_TIMEOUT, TASK_FOREVER, &NTPSyncCallback);
+Task oneTimePasswordGeneration(OTP_ENTROPY_WAIT_TIME, TASK_FOREVER, &oneTimePasswordGenerationCallback);
 
 // Set up a scheduler to schedule all of these tasks
 Scheduler taskRunner;
@@ -101,6 +107,7 @@ void setup() {
   taskRunner.addTask(sendClientServiceMessage);
   taskRunner.addTask(listenForUDPPacket);
   taskRunner.addTask(NTPSync);
+  taskRunner.addTask(oneTimePasswordGeneration);
   NTPSync.enable();
   readMic.enable();
   readLight.enable();
@@ -108,6 +115,12 @@ void setup() {
   sendDataPacket.enable();
   sendClientServiceMessage.enable();
   listenForUDPPacket.enable();
+  // DEBUG
+  oneTimePasswordGeneration.enable();
+  // Note that oneTimePasswordGeneration starts off as disabled
+
+  // Set the initial microphone entropy fullness to 0
+  microphone_entropy_fullness = 0;
 }
 
 // Helper function that configures the input select lines of the MUX so that the mic is feeding data to A0
@@ -124,8 +137,24 @@ void select_light() {
 
 void readMicCallback() {
   select_microphone();
-  microphoneData[microphoneDataSize] = analogRead(ANALOG_PIN);
+  uint32_t microphone_read = analogRead(ANALOG_PIN);
+  microphoneData[microphoneDataSize] = microphone_read;
   microphoneDataSize = microphoneDataSize + 1;
+
+  // Put this data into the microphone entropy array if it's not full
+  if (microphone_entropy_fullness != MICROPHONE_ENTROPY_SIZE) {
+    addDataToMicrophoneEntropy(microphone_read);
+  }
+}
+
+void addDataToMicrophoneEntropy(uint32_t data) {
+  // Lo-fi solution, fancy ones didn't work :(
+  uint8_t extracted_byte;
+  for (int i = 0; i < 4; i++) {
+    extracted_byte = (data >> (8 * i)) & 0xff;
+    microphone_entropy[microphone_entropy_fullness] = extracted_byte;
+    microphone_entropy_fullness += 1;
+  };
 }
 
 void readLightCallback() {
@@ -268,6 +297,71 @@ void sendDataPacketCallback() {
   humidityDataSize = 0;
   lightDataSize = 0;
   microphoneDataSize = 0;
+}
+
+void oneTimePasswordGenerationCallback() {
+  if (microphone_entropy_fullness == MICROPHONE_ENTROPY_SIZE) {
+    // NOTE: This code is almost directly from the Spritz-Cipher examples
+
+    spritz_ctx hash_ctx; /* For the hash */
+    spritz_ctx rng_ctx; /* For the random bytes generator */
+
+    uint8_t digest[32]; /* Hash result, 256-bit */
+    uint8_t buf[32];
+
+    uint8_t i;
+    uint16_t j;
+    uint16_t LOOP_ROUNDS = 1024; /* 32 KB: (1024 * 32) / sizeof(buf) */
+
+    /* Make a 256-bit hash of the entropy in "buf" using one function */
+    spritz_hash(buf, (uint8_t)(sizeof(buf)), microphone_entropy, (uint8_t)(sizeof(microphone_entropy)));
+    /* Initialize/Seed the RNG with the hash of entropy */
+    spritz_setup(&rng_ctx, buf, (uint8_t)(sizeof(buf)));
+
+    /* The data will be generated in small chunks,
+    * So we can not use "one function API" */
+    spritz_hash_setup(&hash_ctx);
+
+    for (j = 0; j < LOOP_ROUNDS; j++) {
+      /* Fill buf with Spritz random bytes generator output */
+      for (i = 0; i < (uint8_t)(sizeof(buf)); i++) {
+        buf[i] = spritz_random8(&rng_ctx);
+      }
+      /* Add buf data to hash_ctx */
+      spritz_hash_update(&hash_ctx, buf, (uint16_t)(sizeof(buf)));
+    }
+
+    /* Output the final hash */
+    spritz_hash_final(&hash_ctx, digest, (uint8_t)(sizeof(digest)));
+
+    Serial.println("One time password:");
+
+    /* Print the hash in HEX */
+    for (i = 0; i < (uint8_t)(sizeof(digest)); i++) {
+      if (digest[i] < 0x10) { /* To print "0F", not "F" */
+        Serial.write('0');
+      }
+      Serial.print(digest[i], HEX);
+    }
+    Serial.println();
+
+    /* wipe "hash_ctx" data by replacing it with zeros (0x00) */
+    spritz_state_memzero(&hash_ctx);
+
+    /* wipe "digest" data by replacing it with zeros (0x00) */
+    spritz_memzero(digest, (uint16_t)(sizeof(digest)));
+
+    /* Keys, RNG seed & buffer should be wiped in realworld.
+    * In this example we should not wipe "entropy"
+    * cause it is embedded in the code */
+    spritz_state_memzero(&rng_ctx);
+    spritz_memzero(buf, (uint16_t)(sizeof(buf)));
+    spritz_memzero(microphone_entropy, (uint16_t)(sizeof(microphone_entropy)));
+    // Generate OTP and print, based on entroy
+    // Disable this task 
+    oneTimePasswordGeneration.disable();
+  }
+  // This task will run periodically until it has enough entropy
 }
 
 bool encodePackedArray(pb_ostream_t *stream, const pb_field_t *field, void * const *arg) {
