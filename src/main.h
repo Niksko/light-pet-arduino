@@ -12,7 +12,7 @@
 #include <SI7021.h>
 #include <WiFiUdp.h>
 #include <SpritzCipher.h>
-#include <ESP8266WebServerSecure.h>
+#include <ESP8266WiFi.h>
 
 // The following file should #define two values, WIFI_SSID and WIFI_PASSWORD, the ssid and pass for the network you
 // want to connect to

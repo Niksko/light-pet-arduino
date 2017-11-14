@@ -46,7 +46,6 @@ Task readLight(MS_PER_SECOND / LIGHT_SAMPLE_RATE, TASK_FOREVER, &readLightCallba
 Task readTempHumidity(MS_PER_SECOND / TEMP_HUMIDITY_SAMPLE_RATE, TASK_FOREVER, &readTempHumidityCallback);
 Task sendDataPacket(MS_PER_SECOND / DATA_SEND_RATE, TASK_FOREVER, &sendDataPacketCallback);
 Task sendClientServiceMessage(MS_PER_SECOND * ADVERTISEMENT_RATE, TASK_FOREVER, &sendClientServiceMessageCallback);
-Task listenForUDPPacket(MS_PER_SECOND / DATA_RECEIVE_RATE, TASK_FOREVER, &listenForUDPPacketCallback);
 Task NTPSync(MS_PER_SECOND * NTP_SYNC_TIMEOUT, TASK_FOREVER, &NTPSyncCallback);
 Task oneTimePasswordGeneration(OTP_ENTROPY_WAIT_TIME, TASK_FOREVER, &oneTimePasswordGenerationCallback);
 
@@ -63,7 +62,7 @@ IPAddress serverIP(0, 0, 0, 0);
 WiFiUDP udp;
 
 // Set up a secure server instance
-ESP8266WebServerSecure webServer(443);
+WiFiServerSecure webServer(443);
 
 // Create a variable to hold the Unix time during setup, as well as a variable to hold the current millis when
 // we got this time. This way we can compute current NTP time by comparison
@@ -108,8 +107,6 @@ void setup() {
   // Set server key
   webServer.setServerKeyAndCert_P(rsakey, sizeof(rsakey), x509, sizeof(x509));
 
-  webServer.on("/", handleRoot);
-
   webServer.begin();
 
   // Add all the tasks to the runner and enable them
@@ -118,7 +115,6 @@ void setup() {
   taskRunner.addTask(readTempHumidity);
   taskRunner.addTask(sendDataPacket);
   taskRunner.addTask(sendClientServiceMessage);
-  taskRunner.addTask(listenForUDPPacket);
   taskRunner.addTask(NTPSync);
   taskRunner.addTask(oneTimePasswordGeneration);
   NTPSync.enable();
@@ -127,7 +123,6 @@ void setup() {
   readTempHumidity.enable();
   sendDataPacket.enable();
   sendClientServiceMessage.enable();
-  listenForUDPPacket.enable();
   // DEBUG
   oneTimePasswordGeneration.enable();
   // Note that oneTimePasswordGeneration starts off as disabled
@@ -189,14 +184,6 @@ void sendClientServiceMessageCallback() {
   udp.beginPacket(broadcastIP, UDP_PORT);
   udp.write(CLIENT_SERVICE_MESSAGE);
   udp.endPacket();
-}
-
-void handleRoot() {
-  webServer.send(200, "text/plain", "Hello from esp8266 over HTTPS!");
-}
-
-void listenForUDPPacketCallback() {
-  webServer.handleClient();
 }
 
 void NTPSyncCallback() {
@@ -399,4 +386,37 @@ bool encodePackedArray(pb_ostream_t *stream, const pb_field_t *field, void * con
 
 void loop() {
   taskRunner.execute();
+  WiFiClientSecure client = webServer.available();
+  if (!client) {
+    return;
+  }
+
+  unsigned long timeout = millis() + 3000;
+  while(!client.available() && millis() < timeout) {
+    delay(1);
+  }
+  if (millis() > timeout) {
+    Serial.println("timeout");
+    client.flush();
+    client.stop();
+    return;
+  }
+
+  // Read the first line of the request
+  String req = client.readStringUntil('\r');
+  Serial.println(req);
+  client.flush();
+  
+  client.flush();
+
+  // Prepare the response
+  String s = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello world from arduino!\n";
+
+  // Send the response to the client
+  client.print(s);
+  delay(1);
+  Serial.println("Client disonnected");
+
+  // The client will actually be disconnected 
+  // when the function returns and 'client' object is detroyed
 }
