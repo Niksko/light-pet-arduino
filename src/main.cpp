@@ -26,6 +26,7 @@ SensorData outputData;
 // Variables used to hold data for CSPRNG seeding
 uint8_t microphone_entropy[MICROPHONE_ENTROPY_SIZE];
 uint8_t microphone_entropy_fullness;
+String sentDigest = "";
 
 // Function prototypes for task callback functions
 void readMicCallback();
@@ -63,6 +64,9 @@ WiFiUDP udp;
 
 // Set up a secure server instance
 WiFiServerSecure webServer(443);
+
+// Set up a secure client instance for sending data
+WiFiClientSecure destinationServer;
 
 // Create a variable to hold the Unix time during setup, as well as a variable to hold the current millis when
 // we got this time. This way we can compute current NTP time by comparison
@@ -287,8 +291,8 @@ void oneTimePasswordGenerationCallback() {
     spritz_ctx hash_ctx; /* For the hash */
     spritz_ctx rng_ctx; /* For the random bytes generator */
 
-    uint8_t digest[32]; /* Hash result, 256-bit */
     uint8_t buf[32];
+    uint8_t digest[32]; /* Hash result, 256-bit */
 
     uint8_t i;
     uint16_t j;
@@ -320,10 +324,12 @@ void oneTimePasswordGenerationCallback() {
     /* Print the hash in HEX */
     for (i = 0; i < (uint8_t)(sizeof(digest)); i++) {
       if (digest[i] < 0x10) { /* To print "0F", not "F" */
-        Serial.write('0');
+        sentDigest += '0';
       }
-      Serial.print(digest[i], HEX);
+      sentDigest += String(digest[i], HEX);
     }
+
+    Serial.print(sentDigest);
     Serial.println();
 
     /* wipe "hash_ctx" data by replacing it with zeros (0x00) */
@@ -385,38 +391,55 @@ bool encodePackedArray(pb_ostream_t *stream, const pb_field_t *field, void * con
 }
 
 void loop() {
-  taskRunner.execute();
-  WiFiClientSecure client = webServer.available();
-  if (!client) {
-    return;
+  // Run the loop if
+  // * Entropy is not full, to fill it
+  // * sentDigest is empty, to fill and print it
+  // * serverIP is still null, because at this poitn we want to be sending data to the server
+  if((microphone_entropy_fullness != MICROPHONE_ENTROPY_SIZE) || (sentDigest == "") || (serverIP != IPAddress(0, 0, 0, 0))) {
+    taskRunner.execute();
   }
+  else {
+    WiFiClientSecure client = webServer.available();
+    if (!client) {
+      return;
+    }
 
-  unsigned long timeout = millis() + 3000;
-  while(!client.available() && millis() < timeout) {
-    delay(1);
-  }
-  if (millis() > timeout) {
-    Serial.println("timeout");
+    unsigned long timeout = millis() + 3000;
+    while(!client.available() && millis() < timeout) {
+      delay(1);
+    }
+    if (millis() > timeout) {
+      Serial.println("timeout");
+      client.flush();
+      client.stop();
+      return;
+    }
+
+    // Read the first value from the request
+    client.readStringUntil('=');
+    String receivedDigest = client.readStringUntil(' ');
     client.flush();
-    client.stop();
-    return;
+
+    Serial.println(receivedDigest);
+
+    client.flush();
+
+    // Prepare the response
+    String response;
+    if (receivedDigest == sentDigest) {
+      serverIP = client.localIP();
+      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n";
+    }
+    else {
+      response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\n";
+    }
+
+    // Send the response to the client
+    client.print(response);
+    delay(1);
+    Serial.println("Client disonnected");
+
+    // The client will actually be disconnected 
+    // when the function returns and 'client' object is detroyed
   }
-
-  // Read the first line of the request
-  String req = client.readStringUntil('\r');
-  Serial.println(req);
-  client.flush();
-  
-  client.flush();
-
-  // Prepare the response
-  String s = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello world from arduino!\n";
-
-  // Send the response to the client
-  client.print(s);
-  delay(1);
-  Serial.println("Client disonnected");
-
-  // The client will actually be disconnected 
-  // when the function returns and 'client' object is detroyed
 }
