@@ -2,9 +2,9 @@
 *.credentials.*
 
 # Ignore generated protobuf files
+*.pb.c
+*.pb.h
 
-# Ignore nanopb installation
-nanopb*/
 .pioenvs
 .piolibdeps
 .vscode/c_cpp_properties.json
