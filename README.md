@@ -62,8 +62,21 @@ We currently use a fork of the ESP8266 Arduino library that has HTTPS support. O
 
 ## Usage
 
-1. Download the nanopb binaries from https://jpa.kapsi.fi/nanopb/download/ and unzip them to a local directory.
-2. Update the path at the top of the makefile to point to the right location
-3. Ensure that you have python3 installed, this is used to build the `configuration.json` into a header file for upload
-4. Run `make` from the root directory to update the configuration header and to build the protobuf for usage by the arduino code
-5. You should now be able to build and upload using PlatformIO
+1. Ensure that you have `docker` and `docker-compose` installed.
+2. Build the docker container using `docker-compose build nanopb-builder`.
+3. Run the container using `docker-compuse run --rm nanopb-builder`.
+
+This will compile the `configuration.json` and `src/sensorData.proto` files using the Makefile, but inside of a Docker container. This avoids you having
+to install too many dependencies on your local machine.
+
+## Roadmap
+
+* Create root CA cert for this project
+* Use root CA cert to generate a cert for the arduino, and for use by the server
+* Add posting of protobuf data to https endpoint
+* Add verification of https server certificate by root CA
+* Reimplement server in Golang. Server should:
+  * Expose an API for control via a small react app
+  * Trust root CA cert, so should trust https get to client to verify
+  * Should serve as https server, presenting root CA signed cert
+  * Should dump data into postgres db

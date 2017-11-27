@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  nanopb-builder:
+    build:
+      context: .
+    volumes:
+      - ./src:/src
+      - ./tools:/tools

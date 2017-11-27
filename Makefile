@@ -1,15 +1,16 @@
 # Define the path to the nanopb generator for the protoc compiler
-NANOPB_GENERATOR_PATH = nanopb/generator/protoc-gen-nanopb
+NANOPB_GENERATOR_PATH = generator/protoc-gen-nanopb
 
-CLIENT_SRC_DIR = src
-TOOLS_DIR = tools
+CLIENT_SRC_DIR = /src
+TOOLS_DIR = /tools
+PYTHON_EXEC = python3
 
 all: client
 
 client: client_config client_protobuf
 
 client_config: configuration.json
-	python $(TOOLS_DIR)/write_config_header.py configuration.json
+	$(PYTHON_EXEC) $(TOOLS_DIR)/write_config_header.py configuration.json
 	mv configuration.h $(CLIENT_SRC_DIR)
 
 client_protobuf: $(CLIENT_SRC_DIR)/sensorData.proto
