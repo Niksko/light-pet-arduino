@@ -64,7 +64,7 @@ We currently use a fork of the ESP8266 Arduino library that has HTTPS support. O
 
 1. Ensure that you have `docker` and `docker-compose` installed.
 2. Build the docker container using `docker-compose build nanopb-builder`.
-3. Run the container using `docker-compuse run --rm nanopb-builder`.
+3. Run the container using `docker-compose run --rm nanopb-builder`.
 
 This will compile the `configuration.json` and `src/sensorData.proto` files using the Makefile, but inside of a Docker container. This avoids you having
 to install too many dependencies on your local machine.
