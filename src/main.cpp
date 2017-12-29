@@ -76,6 +76,13 @@ uint64_t NTPSyncMillis;
 // Set up the server magic string in a constant string variable
 const char serverMagicString[] = SERVER_SERVICE_MESSAGE;
 
+// Load root CA cert details
+extern const unsigned char caCert[] PROGMEM;
+extern const unsigned int caCertLen;
+
+IPAddress host(10, 0, 0, 30);
+const int httpsPort = 443;
+
 void setup() {
   // Set up serial
   Serial.begin(38400);
@@ -105,13 +112,37 @@ void setup() {
   // Compute the broadcast IP
   broadcastIP = ~WiFi.subnetMask() | WiFi.gatewayIP();
 
-  // Start up the UDP service
-  udp.begin(UDP_PORT);
+  WiFi.mode(WIFI_STA);
 
   // Set server key
   webServer.setServerKeyAndCert_P(rsakey, sizeof(rsakey), x509, sizeof(x509));
 
   webServer.begin();
+
+  // Synchronize time useing SNTP. This is necessary to verify that
+  // the TLS certificates offered by the server are currently valid.
+  Serial.print("Setting time using SNTP");
+  configTime(8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  time_t now = time(nullptr);
+  while (now < 8 * 3600 * 2) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+  }
+  Serial.println("");
+  struct tm timeinfo;
+  gmtime_r(&now, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
+
+  // Load root certificate in DER format into WiFiClientSecure object
+  bool res = destinationServer.setCACert_P(caCert, caCertLen);
+  if (!res) {
+    Serial.println("Failed to load root CA certificate!");
+    while (true) {
+      yield();
+    }
+  }
 
   // Add all the tasks to the runner and enable them
   taskRunner.addTask(readMic);
@@ -259,13 +290,28 @@ void sendDataPacketCallback() {
     Serial.println(PB_GET_ERROR(&outputStream));
   }
   else {
-    // If we have a real server, not just the default 0.0.0.0 IP
-    if (serverIP != IPAddress(0, 0, 0, 0)) {
-      // Send the encoded data from the output buffer
-      udp.beginPacket(serverIP, UDP_PORT);
-      udp.write(outputBuffer, message_length);
-      udp.endPacket();
+    // Connect to remote server
+    Serial.print("connecting to ");
+    Serial.println(host);
+    if (!destinationServer.connect(host, httpsPort)) {
+      Serial.println("connection failed");
+      return;
     }
+    // Verify validity of server's certificate
+    if (destinationServer.verifyCertChain("10.0.0.30")) {
+      Serial.println("Server certificate verified");
+    } else {
+      Serial.println("ERROR: certificate verification failed!");
+      return;
+    }
+
+    // // If we have a real server, not just the default 0.0.0.0 IP
+    // if (serverIP != IPAddress(0, 0, 0, 0)) {
+    //   // Send the encoded data from the output buffer
+    //   udp.beginPacket(serverIP, UDP_PORT);
+    //   udp.write(outputBuffer, message_length);
+    //   udp.endPacket();
+    // }
 
     if (DEBUG_MODE) {
       // Print the data to the serial

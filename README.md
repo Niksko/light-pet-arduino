@@ -69,6 +69,16 @@ We currently use a fork of the ESP8266 Arduino library that has HTTPS support. O
 This will compile the `configuration.json` and `src/sensorData.proto` files using the Makefile, but inside of a Docker container. This avoids you having
 to install too many dependencies on your local machine.
 
+## Ca cert generation and loading
+Generate a root CA cert via the usual means. Convert your root ca certificate to DER format, and then output a c header file using
+`xdd -i <certfile> > outfile`, and import this an use it.
+
+For the server, sign a cert using the root ca cert, and start up a web server that serves this. If this is a non-existant domain (ie. not in the
+public DNS system), you may need to add a #DEFINE that defines a local DNS server, and have that DNS server route requests to your local machine. This
+will also require an iptables entry to route port 443 requests for the external IP to localhost that the docker container binds to:
+`sudo iptables -t nat -A OUTPUT -p tcp --dport 443 -d 10.0.0.30 -j DNAT --to-destination 127.0.0.1:443`
+
+
 ## Roadmap
 
 * Create root CA cert for this project

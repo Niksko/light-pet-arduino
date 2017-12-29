@@ -6,6 +6,10 @@
 #include <pb_decode.h>
 #include "sensorData.pb.h"
 #include "configuration.h"
+#include "caCert.h"
+
+// Use our local dns server to resolve names
+#define DNS_SERVER_ADDRESS(ipaddr) (ip4_addr_set_u32(ipaddr, ipaddr_addr("10.0.0.1")))
 
 #include <TaskScheduler.h>
 #include <Wire.h>
@@ -13,6 +17,7 @@
 #include <WiFiUdp.h>
 #include <SpritzCipher.h>
 #include <ESP8266WiFi.h>
+#include <time.h>
 
 // The following file should #define two values, WIFI_SSID and WIFI_PASSWORD, the ssid and pass for the network you
 // want to connect to
