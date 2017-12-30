@@ -80,7 +80,8 @@ const char serverMagicString[] = SERVER_SERVICE_MESSAGE;
 extern const unsigned char caCert[] PROGMEM;
 extern const unsigned int caCertLen;
 
-IPAddress host(10, 0, 0, 30);
+IPAddress serverAddress(10, 0, 0, 30);
+const char serverCertCommonName[] = "10.0.0.30";
 const int httpsPort = 443;
 
 void setup() {
@@ -292,26 +293,41 @@ void sendDataPacketCallback() {
   else {
     // Connect to remote server
     Serial.print("connecting to ");
-    Serial.println(host);
-    if (!destinationServer.connect(host, httpsPort)) {
+    Serial.println(serverAddress);
+    if (!destinationServer.connect(serverAddress, httpsPort)) {
       Serial.println("connection failed");
       return;
     }
+
     // Verify validity of server's certificate
-    if (destinationServer.verifyCertChain("10.0.0.30")) {
+    if (destinationServer.verifyCertChain(serverCertCommonName)) {
       Serial.println("Server certificate verified");
-    } else {
-      Serial.println("ERROR: certificate verification failed!");
-      return;
     }
 
-    // // If we have a real server, not just the default 0.0.0.0 IP
-    // if (serverIP != IPAddress(0, 0, 0, 0)) {
-    //   // Send the encoded data from the output buffer
-    //   udp.beginPacket(serverIP, UDP_PORT);
-    //   udp.write(outputBuffer, message_length);
-    //   udp.endPacket();
-    // }
+    String postData;
+
+    postData += "POST / HTTP/1.1\r\n";
+    postData += "Host: 10.0.0.30\r\n";
+    postData += "Content-Type: application/octet-stream\r\n";
+    postData += "Accept: */*\r\n";
+    postData += "Connection: keep-alive\r\n";
+    postData += "Content-Length: ";
+    postData += (2 * message_length);
+    postData += "\r\n\r\n";
+    for (int i = 0; i < message_length; i++) {
+      char hexData[2];
+      sprintf(hexData, "%02x", outputBuffer[i]);
+      postData += hexData;
+    }
+    postData += "\r\n";
+    destinationServer.print(postData);
+
+    Serial.println("request sent");
+    if (destinationServer.connected()) {
+      String line = destinationServer.readStringUntil('\r');
+      if (line == "HTTP/1.1 200 OK") {
+        Serial.println("Got 200 OK response");
+      }
 
     if (DEBUG_MODE) {
       // Print the data to the serial
@@ -323,11 +339,12 @@ void sendDataPacketCallback() {
     }
   }
 
-  // Reset the values that we use to track the size of our data arrays to zero
-  temperatureDataSize = 0;
-  humidityDataSize = 0;
-  lightDataSize = 0;
-  microphoneDataSize = 0;
+    // Reset the values that we use to track the size of our data arrays to zero
+    temperatureDataSize = 0;
+    humidityDataSize = 0;
+    lightDataSize = 0;
+    microphoneDataSize = 0;
+  }
 }
 
 void oneTimePasswordGenerationCallback() {
