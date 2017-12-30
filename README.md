@@ -73,20 +73,16 @@ to install too many dependencies on your local machine.
 Generate a root CA cert via the usual means. Convert your root ca certificate to DER format, and then output a c header file using
 `xdd -i <certfile> > outfile`, and import this an use it.
 
-For the server, sign a cert using the root ca cert, and start up a web server that serves this. If this is a non-existant domain (ie. not in the
-public DNS system), you may need to add a #DEFINE that defines a local DNS server, and have that DNS server route requests to your local machine. This
-will also require an iptables entry to route port 443 requests for the external IP to localhost that the docker container binds to:
-`sudo iptables -t nat -A OUTPUT -p tcp --dport 443 -d 10.0.0.30 -j DNAT --to-destination 127.0.0.1:443`
+## Test server
+See readme in the `test/test-server` directory for info on how to debug POSTs.
 
+## TODO
 
-## Roadmap
-
-* Create root CA cert for this project
-* Use root CA cert to generate a cert for the arduino, and for use by the server
-* Add posting of protobuf data to https endpoint
-* Add verification of https server certificate by root CA
-* Reimplement server in Golang. Server should:
-  * Expose an API for control via a small react app
-  * Trust root CA cert, so should trust https get to client to verify
-  * Should serve as https server, presenting root CA signed cert
-  * Should dump data into postgres db
+* Keep connections alive between POSTs.
+* Ensure that no data is sent before verification
+* Allow verification to send hostname for sending data to
+* Allow for proper hostnames on the local network via a custom DNS resolver
+* Handle error scenarios better
+* Build up POST using a http client class
+* Figure out why cert validation only works on the first connection
+* Rip out now unnecessary components of `configuration.json/configuration.h`
